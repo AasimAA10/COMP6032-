@@ -1,43 +1,31 @@
+# ruparams.py — parameters & map for RoboUber (Week 5 build)
+# This file centralises all tunables and defines the network.
+
 import numpy
-import networld
 
-# create objects for RoboUber
+# ------------------------
+# Deterministic base seed
+# ------------------------
+BASE_SEED = 42
 
-# TODO
-# experiment with parameter settings. worldX and worldY should not need to be
-# changed, but others are fair game!
-# basic parameters
+# ------------------------
+# World / run parameters
+# ------------------------
 worldX = 50
 worldY = 50
-runTime = 1440 # number of ticks in a 'day'
-numDays = 1    # number of days to run
-# you can change the DisplaySize to be bigger if you want larger-size objects on-screen
-displaySize = (1024,768)
+runTime = 1440          # one day = 1440 ticks
+numDays = 1             # multi-day works with bugfix base; keep 1 for week5 tasks
+displaySize = (1024, 768)
 trafficOn = False
-recordFares = False # turn this on to append to faretypes.csv for more fare data
+recordFares = False     # set True to append to faretypes.csv
 
-# play around with these parameters if you want, to see how they affect the results.
-# (but keep the original settings so you can return to something more-or-less 'sensible)
-
-# most popular locations can generate a fare every hour
-#fareProbMagnet = lambda m: numpy.random.random() > 0.98
-# popular locations generate a fare about once every 2 hours
-#fareProbPopular = lambda p: numpy.random.random() > 0.992
-# semi-popular locations generate a fare approximately every 4 hours
-#fareProbSemiPopular = lambda s: numpy.random.random() > 0.995
-# normal locations generate a fare about once per day
-#fareProbNormal = lambda n: numpy.random.random() > 0.999
-
-# most popular locations can generate a fare every hour
+# Fare probabilities (used as magnitudes by fare generator)
 fareProbMagnet = 0.02
-# popular locations generate a fare about once every 2 hours
 fareProbPopular = 0.008
-# semi-popular locations generate a fare approximately every 4 hours
 fareProbSemiPopular = 0.005
-# normal locations generate a fare about once per day
 fareProbNormal = 0.001
 
-# some traffic injectors and sinks for real-time simulation
+# traffic toggles
 trafficSrcMinor = 1 if trafficOn else 0
 trafficSrcSignificant = 2 if trafficOn else 0
 trafficSrcMajor = 3 if trafficOn else 0
@@ -47,8 +35,9 @@ trafficSinkSignificant = 2 if trafficOn else 0
 trafficSinkMajor = 3 if trafficOn else 0
 trafficSinkDrain = 4 if trafficOn else 0
 
-# Fare types as initialisers for Nodes. Several different values lead to different distributions.
-# You could experiment with varying these, if you want to validate a machine learning model.
+# ------------------------
+# Fare type initialisers
+# ------------------------
 fTypeArgs1 = {'normal': {'type_prob': 0.5,
                         'destparams': {'d0': (numpy.array([24, 24]), numpy.array([[6, 0], [0,6]])),
                                        'd1': (numpy.array([15, 40]), numpy.array([[10, 0], [0, 10]])),
@@ -144,93 +133,99 @@ fTypeArgs3.update({'random': {'type_prob': 0.02,
 
 fGenDefault = {'fare_probability': fareProbNormal}
 
-# some nodes - this can be automated
-jct0 = networld.junctionDef(x=0, y=0, cap=2, canStop=True, src=trafficSrcMinor, sink=trafficSinkMinor, **fTypeArgs1)
-jct1 = networld.junctionDef(x=20, y=0, cap=2, canStop=True, src=trafficSrcSignificant, sink=trafficSinkMinor, **fTypeArgs1)
-jct2 = networld.junctionDef(x=40, y=0, cap=2, canStop=True, src=trafficSrcMajor, sink=trafficSinkMajor, **fTypeArgs2)
-jct3 = networld.junctionDef(x=49, y=0, cap=2, canStop=True, src=trafficSrcMinor, sink=trafficSinkMinor, **fTypeArgs2)
-jct4 = networld.junctionDef(x=0, y=10, cap=2, canStop=True, src=trafficSrcSignificant, sink=trafficSinkMinor, **fTypeArgs2)
-jct5 = networld.junctionDef(x=10, y=10, cap=2, canStop=True, fareProb=fareProbSemiPopular, maxTraffic=12, **fTypeArgs2)
-jct6 = networld.junctionDef(x=20, y=10, cap=2, canStop=True, maxTraffic=12, **fTypeArgs2)
-jct7 = networld.junctionDef(x=24, y=15, cap=4, canStop=True, fareProb=fareProbSemiPopular, maxTraffic=12, **fTypeArgs3)
-jct8 = networld.junctionDef(x=30, y=15, cap=4, canStop=True, fareProb=fareProbSemiPopular, maxTraffic=12, **fTypeArgs1)
-jct9 = networld.junctionDef(x=40, y=15, cap=4, canStop=True, fareProb=fareProbPopular, maxTraffic=12, **fTypeArgs1)
-jct10 = networld.junctionDef(x=49, y=15, cap=2, canStop=True, src=trafficSrcSignificant, sink=trafficSinkSignificant, **fTypeArgs1)
-jct11 = networld.junctionDef(x=10, y=20, cap=2, canStop=True, **fTypeArgs2)
-jct12 = networld.junctionDef(x=20, y=20, cap=4, canStop=True, fareProb=fareProbSemiPopular, maxTraffic=12, **fTypeArgs2)
-jct13 = networld.junctionDef(x=10, y=24, cap=2, canStop=True, **fTypeArgs2)
-jct14 = networld.junctionDef(x=20, y=24, cap=4, canStop=True, **fTypeArgs2)
-jct15 = networld.junctionDef(x=24, y=24, cap=8, canStop=True, fareProb=fareProbMagnet, maxTraffic=16, src=trafficSrcHub, sink=trafficSinkMajor, **fTypeArgs1)
-jct16 = networld.junctionDef(x=30, y=24, cap=4, canStop=True, **fTypeArgs1)
-jct17 = networld.junctionDef(x=0, y=35, cap=2, canStop=True, src=trafficSrcSignificant, sink=trafficSinkMajor, **fTypeArgs1)
-jct18 = networld.junctionDef(x=10, y=35, cap=4, canStop=True, fareProb=fareProbPopular, maxTraffic=12, **fTypeArgs2)
-jct19 = networld.junctionDef(x=20, y=30, cap=4, canStop=True, fareProb=fareProbSemiPopular, **fTypeArgs2)
-jct20 = networld.junctionDef(x=24, y=35, cap=4, canStop=True, fareProb=fareProbPopular, maxTraffic=12, src=trafficSrcMajor, sink=trafficSinkDrain, **fTypeArgs1)
-jct21 = networld.junctionDef(x=30, y=30, cap=4, canStop=True, **fTypeArgs3)
-jct22 = networld.junctionDef(x=40, y=30, cap=4, canStop=True, fareProb=fareProbSemiPopular, maxTraffic=12, **fTypeArgs3)
-jct23 = networld.junctionDef(x=49, y=30, cap=2, canStop=True, src=trafficSrcMinor, sink=trafficSinkMinor, **fTypeArgs1)
-jct24 = networld.junctionDef(x=10, y=40, cap=2, canStop=True, **fTypeArgs1)
-jct25 = networld.junctionDef(x=15, y=40, cap=4, canStop=True, fareProb=fareProbPopular, maxTraffic=12, **fTypeArgs1)
-jct26 = networld.junctionDef(x=30, y=40, cap=4, canStop=True, fareProb=fareProbSemiPopular, maxTraffic=12, **fTypeArgs3)
-jct27 = networld.junctionDef(x=40, y=40, cap=2, canStop=True, maxTraffic=12, **fTypeArgs3)
-jct28 = networld.junctionDef(x=0, y=49, cap=2, canStop=True, src=trafficSrcMinor, sink=trafficSinkMinor, **fTypeArgs1)
-jct29 = networld.junctionDef(x=15, y=49, cap=2, canStop=True, src=trafficSrcSignificant, sink=trafficSinkMajor, **fTypeArgs1)
-jct30 = networld.junctionDef(x=30, y=49, cap=2, canStop=True, src=trafficSrcMinor, sink=trafficSinkMinor, **fTypeArgs3)
-jct31 = networld.junctionDef(x=49, y=49, cap=2, canStop=True, src=trafficSrcMinor, sink=trafficSinkMinor, **fTypeArgs3)
+# ------------------------
+# Junctions
+# ------------------------
+import networld as _nw  # only for junctionDef/streetDef signatures
+
+jct0 = _nw.junctionDef(x=0, y=0, cap=2, canStop=True, src=trafficSrcMinor, sink=trafficSinkMinor, **fTypeArgs1)
+jct1 = _nw.junctionDef(x=20, y=0, cap=2, canStop=True, src=trafficSrcSignificant, sink=trafficSinkMinor, **fTypeArgs1)
+jct2 = _nw.junctionDef(x=40, y=0, cap=2, canStop=True, src=trafficSrcMajor, sink=trafficSinkMajor, **fTypeArgs2)
+jct3 = _nw.junctionDef(x=49, y=0, cap=2, canStop=True, src=trafficSrcMinor, sink=trafficSinkMinor, **fTypeArgs2)
+jct4 = _nw.junctionDef(x=0, y=10, cap=2, canStop=True, src=trafficSrcSignificant, sink=trafficSinkMinor, **fTypeArgs2)
+jct5 = _nw.junctionDef(x=10, y=10, cap=2, canStop=True, fareProb=fareProbSemiPopular, maxTraffic=12, **fTypeArgs2)
+jct6 = _nw.junctionDef(x=20, y=10, cap=2, canStop=True, maxTraffic=12, **fTypeArgs2)
+jct7 = _nw.junctionDef(x=24, y=15, cap=4, canStop=True, fareProb=fareProbSemiPopular, maxTraffic=12, **fTypeArgs3)
+jct8 = _nw.junctionDef(x=30, y=15, cap=4, canStop=True, fareProb=fareProbSemiPopular, maxTraffic=12, **fTypeArgs1)
+jct9 = _nw.junctionDef(x=40, y=15, cap=4, canStop=True, fareProb=fareProbPopular, maxTraffic=12, **fTypeArgs1)
+jct10 = _nw.junctionDef(x=49, y=15, cap=2, canStop=True, src=trafficSrcSignificant, sink=trafficSinkSignificant, **fTypeArgs1)
+jct11 = _nw.junctionDef(x=10, y=20, cap=2, canStop=True, **fTypeArgs2)
+jct12 = _nw.junctionDef(x=20, y=20, cap=4, canStop=True, fareProb=fareProbSemiPopular, maxTraffic=12, **fTypeArgs2)
+jct13 = _nw.junctionDef(x=10, y=24, cap=2, canStop=True, **fTypeArgs2)
+jct14 = _nw.junctionDef(x=20, y=24, cap=4, canStop=True, **fTypeArgs2)
+jct15 = _nw.junctionDef(x=24, y=24, cap=8, canStop=True, fareProb=fareProbMagnet, maxTraffic=16, src=trafficSrcHub, sink=trafficSinkMajor, **fTypeArgs1)
+jct16 = _nw.junctionDef(x=30, y=24, cap=4, canStop=True, **fTypeArgs1)
+jct17 = _nw.junctionDef(x=0, y=35, cap=2, canStop=True, src=trafficSrcSignificant, sink=trafficSinkMajor, **fTypeArgs1)
+jct18 = _nw.junctionDef(x=10, y=35, cap=4, canStop=True, fareProb=fareProbPopular, maxTraffic=12, **fTypeArgs2)
+jct19 = _nw.junctionDef(x=20, y=30, cap=4, canStop=True, fareProb=fareProbSemiPopular, **fTypeArgs2)
+jct20 = _nw.junctionDef(x=24, y=35, cap=4, canStop=True, fareProb=fareProbPopular, maxTraffic=12, src=trafficSrcMajor, sink=trafficSinkDrain, **fTypeArgs1)
+jct21 = _nw.junctionDef(x=30, y=30, cap=4, canStop=True, **fTypeArgs3)
+jct22 = _nw.junctionDef(x=40, y=30, cap=4, canStop=True, fareProb=fareProbSemiPopular, maxTraffic=12, **fTypeArgs3)
+jct23 = _nw.junctionDef(x=49, y=30, cap=2, canStop=True, src=trafficSrcMinor, sink=trafficSinkMinor, **fTypeArgs1)
+jct24 = _nw.junctionDef(x=10, y=40, cap=2, canStop=True, **fTypeArgs1)
+jct25 = _nw.junctionDef(x=15, y=40, cap=4, canStop=True, fareProb=fareProbPopular, maxTraffic=12, **fTypeArgs1)
+jct26 = _nw.junctionDef(x=30, y=40, cap=4, canStop=True, fareProb=fareProbSemiPopular, maxTraffic=12, **fTypeArgs3)
+jct27 = _nw.junctionDef(x=40, y=40, cap=2, canStop=True, maxTraffic=12, **fTypeArgs3)
+jct28 = _nw.junctionDef(x=0, y=49, cap=2, canStop=True, src=trafficSrcMinor, sink=trafficSinkMinor, **fTypeArgs1)
+jct29 = _nw.junctionDef(x=15, y=49, cap=2, canStop=True, src=trafficSrcSignificant, sink=trafficSinkMajor, **fTypeArgs1)
+jct30 = _nw.junctionDef(x=30, y=49, cap=2, canStop=True, src=trafficSrcMinor, sink=trafficSinkMinor, **fTypeArgs3)
+jct31 = _nw.junctionDef(x=49, y=49, cap=2, canStop=True, src=trafficSrcMinor, sink=trafficSinkMinor, **fTypeArgs3)
 
 junctions = [jct0,jct1,jct2,jct3,jct4,jct5,jct6,jct7,jct8,jct9,jct10,jct11,jct12,jct13,jct14,jct15,
              jct16,jct17,jct18,jct19,jct20,jct21,jct22,jct23,jct24,jct25,jct26,jct27,jct28,jct29,jct30,jct31]
 junctionIdxs = [(node.x,node.y) for node in junctions]
 
-# and some streets between them; likewise, this can be automated
-strt0 = networld.streetDef((0,0), (10,10), 3, 7, biDirectional=True)
-strt1 = networld.streetDef((0,10),(10,10), 2, 6, biDirectional=True)
-strt2 = networld.streetDef((0,35), (10,35), 2, 6, biDirectional=True)
-strt3 = networld.streetDef((0,49), (10,40), 1, 5, biDirectional=True)
-strt4 = networld.streetDef((10,10), (10,20), 4, 0, biDirectional=True)
-strt5 = networld.streetDef((10,20), (10,24), 4, 0, biDirectional=True)
-strt6 = networld.streetDef((10,24), (10,35), 4, 0, biDirectional=True)
-strt7 = networld.streetDef((10,35), (10,40), 4, 0, biDirectional=True)
-strt8 = networld.streetDef((10,10), (20,10), 2, 6, biDirectional=True)
-strt9 = networld.streetDef((10,20), (20,20), 2, 6, biDirectional=True)
-strt10 = networld.streetDef((10,24), (20,24), 2, 6, biDirectional=True)
-strt11 = networld.streetDef((10,35), (20,30), 1, 5, biDirectional=True)
-strt12 = networld.streetDef((10,35), (15,40), 3, 7, biDirectional=True)
-strt13 = networld.streetDef((10,40), (15,40), 2, 6, biDirectional=True)
-strt14 = networld.streetDef((20,0), (20,10), 4, 0, biDirectional=True)
-strt15 = networld.streetDef((20,10), (20,20), 4, 0, biDirectional=True)
-strt16 = networld.streetDef((20,20), (20,24), 4, 0, biDirectional=True)
-strt17 = networld.streetDef((20,24), (20,30), 4, 0, biDirectional=True)
-strt18 = networld.streetDef((15,40), (15,49), 4, 0, biDirectional=True)
-strt19 = networld.streetDef((20,10), (24,15), 3, 7, biDirectional=True)
-strt20 = networld.streetDef((20,20), (24,15), 1, 5, biDirectional=True)
-strt21 = networld.streetDef((20,20), (24,24), 3, 7, biDirectional=True)
-strt22 = networld.streetDef((20,24), (24,24), 2, 6, biDirectional=True)
-strt23 = networld.streetDef((20,30), (24,24), 1, 5, biDirectional=True)
-strt24 = networld.streetDef((20,30), (24,35), 3, 7, biDirectional=True)
-strt25 = networld.streetDef((15,40), (24,35), 1, 5, biDirectional=True)
-strt26 = networld.streetDef((15,40), (30,40), 2, 6, biDirectional=True)
-strt27 = networld.streetDef((24,15), (24,24), 4, 0, biDirectional=True)
-strt28 = networld.streetDef((24,24), (24,35), 4, 0, biDirectional=True)
-strt29 = networld.streetDef((24,15), (30,15), 2, 6, biDirectional=True)
-strt30 = networld.streetDef((24,24), (30,15), 1, 5, biDirectional=True)
-strt31 = networld.streetDef((24,24), (30,24), 2, 6, biDirectional=True)
-strt32 = networld.streetDef((24,24), (30,30), 3, 7, biDirectional=True)
-strt33 = networld.streetDef((24,35), (30,30), 1, 5, biDirectional=True)
-strt34 = networld.streetDef((24,35), (30,40), 3, 7, biDirectional=True)
-strt35 = networld.streetDef((30,15), (30,24), 4, 0, biDirectional=True)
-strt36 = networld.streetDef((30,24), (30,30), 4, 0, biDirectional=True)
-strt37 = networld.streetDef((30,40), (30,49), 4, 0, biDirectional=True)
-strt38 = networld.streetDef((30,15), (40,15), 2, 6, biDirectional=True)
-strt39 = networld.streetDef((30,15), (40,30), 3, 7, biDirectional=True)
-strt40 = networld.streetDef((30,40), (40,40), 2, 6, biDirectional=True)
-strt41 = networld.streetDef((40,0), (40,15), 4, 0, biDirectional=True)
-strt42 = networld.streetDef((40,15), (40,30), 4, 0, biDirectional=True)
-strt43 = networld.streetDef((40,30), (40,40), 4, 0, biDirectional=True)
-strt44 = networld.streetDef((40,15), (49,0), 1, 5, biDirectional=True)
-strt45 = networld.streetDef((40,15), (49,15), 2, 6, biDirectional=True)
-strt46 = networld.streetDef((40,30), (49,30), 2, 6, biDirectional=True)
-strt47 = networld.streetDef((40,40), (49,49), 3, 7, biDirectional=True)
+# ------------------------
+# Streets
+# ------------------------
+strt0 = _nw.streetDef((0,0), (10,10), 3, 7, biDirectional=True)
+strt1 = _nw.streetDef((0,10),(10,10), 2, 6, biDirectional=True)
+strt2 = _nw.streetDef((0,35), (10,35), 2, 6, biDirectional=True)
+strt3 = _nw.streetDef((0,49), (10,40), 1, 5, biDirectional=True)
+strt4 = _nw.streetDef((10,10), (10,20), 4, 0, biDirectional=True)
+strt5 = _nw.streetDef((10,20), (10,24), 4, 0, biDirectional=True)
+strt6 = _nw.streetDef((10,24), (10,35), 4, 0, biDirectional=True)
+strt7 = _nw.streetDef((10,35), (10,40), 4, 0, biDirectional=True)
+strt8 = _nw.streetDef((10,10), (20,10), 2, 6, biDirectional=True)
+strt9 = _nw.streetDef((10,20), (20,20), 2, 6, biDirectional=True)
+strt10 = _nw.streetDef((10,24), (20,24), 2, 6, biDirectional=True)
+strt11 = _nw.streetDef((10,35), (20,30), 1, 5, biDirectional=True)
+strt12 = _nw.streetDef((10,35), (15,40), 3, 7, biDirectional=True)
+strt13 = _nw.streetDef((10,40), (15,40), 2, 6, biDirectional=True)
+strt14 = _nw.streetDef((20,0), (20,10), 4, 0, biDirectional=True)
+strt15 = _nw.streetDef((20,10), (20,20), 4, 0, biDirectional=True)
+strt16 = _nw.streetDef((20,20), (20,24), 4, 0, biDirectional=True)
+strt17 = _nw.streetDef((20,24), (20,30), 4, 0, biDirectional=True)
+strt18 = _nw.streetDef((15,40), (15,49), 4, 0, biDirectional=True)
+strt19 = _nw.streetDef((20,10), (24,15), 3, 7, biDirectional=True)
+strt20 = _nw.streetDef((20,20), (24,15), 1, 5, biDirectional=True)
+strt21 = _nw.streetDef((20,20), (24,24), 3, 7, biDirectional=True)
+strt22 = _nw.streetDef((20,24), (24,24), 2, 6, biDirectional=True)
+strt23 = _nw.streetDef((20,30), (24,24), 1, 5, biDirectional=True)
+strt24 = _nw.streetDef((20,30), (24,35), 3, 7, biDirectional=True)
+strt25 = _nw.streetDef((15,40), (24,35), 1, 5, biDirectional=True)
+strt26 = _nw.streetDef((15,40), (30,40), 2, 6, biDirectional=True)
+strt27 = _nw.streetDef((24,15), (24,24), 4, 0, biDirectional=True)
+strt28 = _nw.streetDef((24,24), (24,35), 4, 0, biDirectional=True)
+strt29 = _nw.streetDef((24,15), (30,15), 2, 6, biDirectional=True)
+strt30 = _nw.streetDef((24,24), (30,15), 1, 5, biDirectional=True)
+strt31 = _nw.streetDef((24,24), (30,24), 2, 6, biDirectional=True)
+strt32 = _nw.streetDef((24,24), (30,30), 3, 7, biDirectional=True)
+strt33 = _nw.streetDef((24,35), (30,30), 1, 5, biDirectional=True)
+strt34 = _nw.streetDef((24,35), (30,40), 3, 7, biDirectional=True)
+strt35 = _nw.streetDef((30,15), (30,24), 4, 0, biDirectional=True)
+strt36 = _nw.streetDef((30,24), (30,30), 4, 0, biDirectional=True)
+strt37 = _nw.streetDef((30,40), (30,49), 4, 0, biDirectional=True)
+strt38 = _nw.streetDef((30,15), (40,15), 2, 6, biDirectional=True)
+strt39 = _nw.streetDef((30,15), (40,30), 3, 7, biDirectional=True)
+strt40 = _nw.streetDef((30,40), (40,40), 2, 6, biDirectional=True)
+strt41 = _nw.streetDef((40,0), (40,15), 4, 0, biDirectional=True)
+strt42 = _nw.streetDef((40,15), (40,30), 4, 0, biDirectional=True)
+strt43 = _nw.streetDef((40,30), (40,40), 4, 0, biDirectional=True)
+strt44 = _nw.streetDef((40,15), (49,0), 1, 5, biDirectional=True)
+strt45 = _nw.streetDef((40,15), (49,15), 2, 6, biDirectional=True)
+strt46 = _nw.streetDef((40,30), (49,30), 2, 6, biDirectional=True)
+strt47 = _nw.streetDef((40,40), (49,49), 3, 7, biDirectional=True)
 
 streets = [strt0,strt1,strt2,strt3,strt4,strt5,strt6,strt7,strt8,strt9,strt10,strt11,strt12,strt13,strt14,strt15,
            strt16,strt17,strt18,strt19,strt20,strt21,strt22,strt23,strt24,strt25,strt26,strt27,strt28,strt29,strt30,strt31,

@@ -4,20 +4,17 @@ import time
 import math
 import sys
 import json
-import copy
 import os
 from datetime import datetime
 
-# the 3 Python modules containing the RoboUber objects
+# project modules
 import networld
 import taxi
 import dispatcher
-
-# the main parameters are in an editable file
-from ruparams import *  # brings in worldX, worldY, runTime, numDays, displaySize, trafficOn, recordFares, junctions/streets, BASE_SEED, etc.
+from ruparams import *  # worldX, worldY, runTime, numDays, displaySize, junctions, streets, fGenDefault, etc.
 
 # -------------------------------
-# Reproducibility (deterministic)
+# Reproducibility (if BASE_SEED present)
 # -------------------------------
 try:
     import random
@@ -29,13 +26,15 @@ except Exception:
     pass
 
 # -------------------------------
-# Results folder for Task 2 logs
+# Task 2b results directory
 # -------------------------------
-RESULTS_DIR = "results_task2"
+RESULTS_DIR = "results_task2b"
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
+# -------------------------------
+# Helpers for safe logging
+# -------------------------------
 def _get_dispatcher_revenue(disp_obj):
-    """Try several common attribute/method names to obtain dispatcher revenue."""
     if hasattr(disp_obj, "getRevenue") and callable(disp_obj.getRevenue):
         try:
             return float(disp_obj.getRevenue())
@@ -47,10 +46,9 @@ def _get_dispatcher_revenue(disp_obj):
                 return float(getattr(disp_obj, name))
             except Exception:
                 pass
-    return None
+    return 0.0
 
 def _count_open_fares(disp_obj):
-    """Try to count currently open/unallocated fares from dispatcher containers."""
     for name in ("_fares", "fares", "_fareBoard", "openFares"):
         if hasattr(disp_obj, name):
             try:
@@ -60,22 +58,47 @@ def _count_open_fares(disp_obj):
                 pass
     return 0
 
+def _snapshot_metrics(out_dict, tick, disp, taxis):
+    """Append a metrics row into out_dict['metrics'] safely."""
+    if out_dict is None:
+        return
+    if "metrics" not in out_dict:
+        out_dict["metrics"] = []
+    try:
+        disp_rev = _get_dispatcher_revenue(disp)
+        open_fares = _count_open_fares(disp)
+        taxi_balances = []
+        on_duty = 0
+        for t in taxis:
+            bal = None
+            for nm in ("_account", "account", "balance", "money"):
+                if hasattr(t, nm):
+                    bal = getattr(t, nm)
+                    break
+            taxi_balances.append(float(bal) if bal is not None else None)
+            on_duty += 1 if getattr(t, "onDuty", True) else 0
+
+        out_dict["metrics"].append({
+            "tick": int(tick),
+            "dispatcherRevenue": float(disp_rev),
+            "taxiBalances": taxi_balances,
+            "onDuty": int(on_duty),
+            "openFares": int(open_fares),
+        })
+    except Exception as e:
+        print(f"[WARN] Snapshot failed at t={tick}: {e}")
+
+# --------------------------------
+# Simulation thread
+# --------------------------------
 def runRoboUber(worldX, worldY, runTime, stop, junctions=None, streets=None,
                 interpolate=False, outputValues=None, **args):
-    """
-    Runs the world simulation in a background thread.
-    Pushes hourly snapshots into outputValues["metrics"] for analysis.
-    """
 
-    # initialise a random fare generator
     if 'fareProb' not in args:
         args['fareProb'] = 0.001
-
-    # might have a file for recording fare types (to gather data for learning them)
     if 'fareFile' not in args:
         args['fareFile'] = None
 
-    # create the NetWorld - the service area
     print("Creating world...")
     svcArea = networld.NetWorld(
         x=worldX, y=worldY, runtime=runTime,
@@ -89,31 +112,29 @@ def runRoboUber(worldX, worldY, runTime, stop, junctions=None, streets=None,
     if 'serviceMap' in args:
         args['serviceMap'] = svcMap
 
-    # create some taxis (Task 2a: longer on-duty via higher idle_loss and longer max_wait)
     print("Creating taxis")
+    # Allow longer wait/idle (Task 2b tuning – safe defaults if not defined in ruparams)
+    idle_loss = globals().get("T2B_IDLE_LOSS", 480)
+    max_wait = globals().get("T2B_MAX_WAIT", 120)
+
     taxi0 = taxi.Taxi(world=svcArea, taxi_num=100, service_area=svcMap, start_point=(20, 0),
-                      idle_loss=400, max_wait=90)
+                      max_wait=max_wait, idle_loss=idle_loss)
     taxi1 = taxi.Taxi(world=svcArea, taxi_num=101, service_area=svcMap, start_point=(49, 15),
-                      idle_loss=400, max_wait=90)
+                      max_wait=max_wait, idle_loss=idle_loss)
     taxi2 = taxi.Taxi(world=svcArea, taxi_num=102, service_area=svcMap, start_point=(15, 49),
-                      idle_loss=400, max_wait=90)
+                      max_wait=max_wait, idle_loss=idle_loss)
     taxi3 = taxi.Taxi(world=svcArea, taxi_num=103, service_area=svcMap, start_point=(0, 35),
-                      idle_loss=400, max_wait=90)
+                      max_wait=max_wait, idle_loss=idle_loss)
     taxis = [taxi0, taxi1, taxi2, taxi3]
 
-    # and a dispatcher
     print("Adding a dispatcher")
     dispatcher0 = dispatcher.Dispatcher(parent=svcArea, taxis=taxis)
-
-    # who should be on duty
     svcArea.addDispatcher(dispatcher0)
 
-    # bring the taxis on duty
     print("Bringing taxis on duty")
     for onDutyTaxi in taxis:
         onDutyTaxi.comeOnDuty()
 
-    # ensure 'metrics' list exists in shared output dict
     if outputValues is not None and "metrics" not in outputValues:
         outputValues["metrics"] = []
 
@@ -121,52 +142,34 @@ def runRoboUber(worldX, worldY, runTime, stop, junctions=None, streets=None,
     threadTime = 0
     print("Starting world")
 
+    # Initial snapshot at t=0 so logs are never empty
+    _snapshot_metrics(outputValues, tick=0, disp=dispatcher0, taxis=taxis)
+
     while threadTime < threadRunTime:
-
-        # if the program may be quitting, stop execution awaiting user decision
         args['ackStop'].wait()
-
-        # exit if 'q' has been pressed
         if stop.is_set():
             threadRunTime = 0
         else:
-            # advance the world by one simulated minute
             svcArea.runWorld(ticks=1, outputs=outputValues)
             if threadTime != svcArea.simTime:
                 threadTime += 1
 
-            # Hourly snapshot (change 60->1 for per-minute)
-            if outputValues is not None and (threadTime % 60 == 0):
-                try:
-                    disp_rev = _get_dispatcher_revenue(dispatcher0)
-                    open_fares = _count_open_fares(dispatcher0)
+            # Hourly snapshot (and also at minute 1 to show early activity)
+            if threadTime % 60 == 0 or threadTime == 1:
+                _snapshot_metrics(outputValues, tick=threadTime, disp=dispatcher0, taxis=taxis)
 
-                    taxi_balances = []
-                    on_duty = 0
-                    for t in taxis:
-                        bal = None
-                        for nm in ("account", "balance", "money", "_account"):
-                            if hasattr(t, nm):
-                                bal = getattr(t, nm)
-                                break
-                        taxi_balances.append(float(bal) if bal is not None else None)
-                        on_duty += 1 if getattr(t, "onDuty", True) else 0
-
-                    outputValues["metrics"].append({
-                        "tick": int(threadTime),
-                        "dispatcherRevenue": disp_rev,
-                        "taxiBalances": taxi_balances,
-                        "onDuty": int(on_duty),
-                        "openFares": int(open_fares)
-                    })
-                except Exception as e:
-                    print(f"[WARN] Logging snapshot failed at t={threadTime}: {e}")
-
-            # speed of the simulation (smaller = faster)
+            # Control simulation speed (smaller is faster)
             time.sleep(1)
 
+    # Ensure a final snapshot at end-of-day
+    if outputValues is not None:
+        last_tick = outputValues["metrics"][-1]["tick"] if outputValues["metrics"] else -1
+        if last_tick < runTime:
+            _snapshot_metrics(outputValues, tick=runTime, disp=dispatcher0, taxis=taxis)
 
-# file to record appearing Fares.
+# --------------------------------
+# Optional fare-type recorder
+# --------------------------------
 if recordFares:
     fareFile = open('./faretypes.csv', 'a')
     print('"{0}"'.format('FareType'), '"{0}"'.format('originX'), '"{0}"'.format('originY'),
@@ -175,15 +178,15 @@ if recordFares:
 else:
     fareFile = None
 
-# events to manage a user exit
+# --------------------------------
+# Pygame setup
+# --------------------------------
 userExit = threading.Event()
 userConfirmExit = threading.Event()
-userConfirmExit.set()  # enable the simulation thread
+userConfirmExit.set()
 
-# pygame initialisation. Only do this once for static elements.
 pygame.init()
 displaySurface = pygame.display.set_mode(size=displaySize, flags=pygame.RESIZABLE)
-backgroundRect = None
 aspectRatio = worldX / worldY
 if aspectRatio > 4 / 3:
     activeSize = (displaySize[0] - 100, (displaySize[0] - 100) / aspectRatio)
@@ -193,11 +196,11 @@ displayedBackground = pygame.Surface(activeSize)
 displayedBackground.fill(pygame.Color(255, 255, 255))
 activeRect = pygame.Rect(round((displaySize[0] - activeSize[0]) / 2),
                          round((displaySize[1] - activeSize[1]) / 2),
-                         activeSize[0], activeSize[1])
+                         int(activeSize[0]), int(activeSize[1]))
 
-meshSize = ((activeSize[0] / worldX), round(activeSize[1] / worldY))
+meshSize = (activeSize[0] / worldX, round(activeSize[1] / worldY))
 
-# create a mesh of possible drawing positions
+# mesh of drawing positions
 positions = [[pygame.Rect(round(x * meshSize[0]),
                           round(y * meshSize[1]),
                           round(meshSize[0]),
@@ -206,14 +209,14 @@ positions = [[pygame.Rect(round(x * meshSize[0]),
              for x in range(worldX)]
 drawPositions = [[displayedBackground.subsurface(positions[x][y]) for y in range(worldY)] for x in range(worldX)]
 
-# junctions exist only at labelled locations; it's convenient to create subsurfaces for them
+# junction subsurfaces
 jctRect = pygame.Rect(round(meshSize[0] / 4),
                       round(meshSize[1] / 4),
                       round(meshSize[0] / 2),
                       round(meshSize[1] / 2))
 jctSquares = [drawPositions[jct[0]][jct[1]].subsurface(jctRect) for jct in junctionIdxs]
 
-# initialise the network edge drawings (as grey lines)
+# draw edges
 for street in streets:
     pygame.draw.aaline(displayedBackground,
                        pygame.Color(128, 128, 128),
@@ -222,17 +225,17 @@ for street in streets:
                        (round(street.nodeB[0] * meshSize[0] + meshSize[0] / 2),
                         round(street.nodeB[1] * meshSize[1] + meshSize[1] / 2)))
 
-# initialise the junction drawings (as grey boxes)
+# draw junctions
 for jct in range(len(junctionIdxs)):
     jctSquares[jct].fill(pygame.Color(192, 192, 192))
     pygame.draw.rect(jctSquares[jct], pygame.Color(128, 128, 128),
                      pygame.Rect(0, 0, round(meshSize[0] / 2), round(meshSize[1] / 2)), 5)
 
-# redraw the entire image
+# paint initial frame
 displaySurface.blit(displayedBackground, activeRect)
 pygame.display.flip()
 
-# which taxi is associated with which colour
+# colour palette for taxis
 taxiColours = {}
 taxiPalette = [pygame.Color(0, 0, 0),
                pygame.Color(0, 0, 255),
@@ -243,7 +246,6 @@ taxiPalette = [pygame.Color(0, 0, 0),
                pygame.Color(255, 255, 0),
                pygame.Color(255, 255, 255)]
 
-# relative positions of taxi and fare markers in a mesh point
 taxiRect = pygame.Rect(round(meshSize[0] / 3),
                        round(meshSize[1] / 3),
                        round(meshSize[0] / 3),
@@ -254,14 +256,14 @@ fareRect = pygame.Rect(round(3 * meshSize[0] / 8),
                        round(meshSize[0] / 4),
                        round(meshSize[1] / 4))
 
-# you can run for more than a day if desired.
+# --------------------------------
+# Run for N days
+# --------------------------------
 for run in range(numDays):
 
-    # create a dict of things we want to record (shared with the sim thread)
+    # shared output buffer with sim thread
     outputValues = {'time': [], 'fares': {}, 'taxis': {}}
-    # metrics snapshots are appended in runRoboUber()
 
-    # create the thread that runs the simulation
     roboUber = threading.Thread(target=runRoboUber,
                                 name='RoboUberThread',
                                 kwargs={'worldX': worldX,
@@ -276,15 +278,11 @@ for run in range(numDays):
                                         'fareProb': fGenDefault,
                                         'fareFile': fareFile})
 
-    # curTime is the time point currently displayed
     curTime = 0
-
-    # start the simulation (which will automatically stop at the end of the run time)
     roboUber.start()
 
-    # this is the display loop which updates the on-screen output.
+    # Display loop
     while curTime < runTime:
-
         try:
             quitevent = next(evt for evt in pygame.event.get() if evt.type == pygame.KEYDOWN)
             if quitevent.key == pygame.K_q:
@@ -306,9 +304,9 @@ for run in range(numDays):
                         continue
         except StopIteration:
             if 'time' in outputValues and len(outputValues['time']) > 0 and curTime != outputValues['time'][-1]:
-                print("curTime: {0}, world.time: {1}".format(curTime, outputValues['time'][-1]))
+                print(f"curTime: {curTime}, world.time: {outputValues['time'][-1]}")
 
-                # redraw map
+                # full redraw
                 displayedBackground.fill(pygame.Color(255, 255, 255))
 
                 for street in streets:
@@ -324,19 +322,28 @@ for run in range(numDays):
                     pygame.draw.rect(jctSquares[jct], pygame.Color(128, 128, 128),
                                      pygame.Rect(0, 0, round(meshSize[0] / 2), round(meshSize[1] / 2)), 5)
 
-                # get fares and taxis that need to be redrawn.
-                faresToRedraw = dict([(fare[0], dict([(timep[0], timep[1])
-                                                      for timep in fare[1].items()
-                                                      if timep[0] > curTime]))
-                                      for fare in outputValues['fares'].items()
-                                      if max(fare[1].keys()) > curTime])
+                # fares and taxis that need to be redrawn
+                faresToRedraw = dict([
+                    (fare_key, dict([
+                        (tstamp, pos)
+                        for (tstamp, pos) in fare_times.items()
+                        if tstamp > curTime
+                    ]))
+                    for (fare_key, fare_times) in outputValues['fares'].items()
+                    if max(fare_times.keys()) > curTime
+                ])
 
-                taxisToRedraw = dict([(taxi_it[0], dict([(taxiPos[0], taxiPos[1])
-                                                         for taxiPos in taxi_it[1].items()
-                                                         if taxiPos[0] > curTime]))
-                                      for taxi_it in outputValues['taxis'].items()
-                                      if max(taxi_it[1].keys()) > curTime])
+                taxisToRedraw = dict([
+                    (taxi_id, dict([
+                        (tstamp, pos)
+                        for (tstamp, pos) in taxi_times.items()
+                        if tstamp > curTime
+                    ]))
+                    for (taxi_id, taxi_times) in outputValues['taxis'].items()
+                    if max(taxi_times.keys()) > curTime
+                ])
 
+                # draw taxis
                 if len(taxisToRedraw) > 0:
                     for taxi_it in taxisToRedraw.items():
                         if taxi_it[0] not in taxiColours and len(taxiPalette) > 0:
@@ -350,33 +357,34 @@ for run in range(numDays):
                                 round(meshSize[0] / 3)
                             )
 
+                # draw fares
                 if len(faresToRedraw) > 0:
                     for fare in faresToRedraw.items():
-                        _ = sorted(list(fare[1].keys()))[-1]
+                        newestFareTime = sorted(list(fare[1].keys()))[-1]
                         pygame.draw.polygon(
                             drawPositions[fare[0][0]][fare[0][1]],
                             pygame.Color(255, 128, 0),
-                            [(meshSize[0] / 2, meshSize[1] / 4),
-                             (meshSize[0] / 2 - math.cos(math.pi / 6) * meshSize[1] / 4,
-                              meshSize[1] / 2 + math.sin(math.pi / 6) * meshSize[1] / 4),
-                             (meshSize[0] / 2 + math.cos(math.pi / 6) * meshSize[1] / 4,
-                              meshSize[1] / 2 + math.sin(math.pi / 6) * meshSize[1] / 4)]
+                            [
+                                (meshSize[0] / 2, meshSize[1] / 4),
+                                (meshSize[0] / 2 - math.cos(math.pi / 6) * meshSize[1] / 4,
+                                 meshSize[1] / 2 + math.sin(math.pi / 6) * meshSize[1] / 4),
+                                (meshSize[0] / 2 + math.cos(math.pi / 6) * meshSize[1] / 4,
+                                 meshSize[1] / 2 + math.sin(math.pi / 6) * meshSize[1] / 4)
+                            ]
                         )
 
-                # redraw
                 displaySurface.blit(displayedBackground, activeRect)
                 pygame.display.flip()
 
-                # advance time
                 curTime += 1
 
-    # wait 'til the simulation thread ends
+    # wait for sim-thread end
     roboUber.join()
 
-    # ------------ Write Day Log ------------
+    # write day log
     try:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_path = os.path.join(RESULTS_DIR, f"task2_day{run+1}_{stamp}.json")
+        out_path = os.path.join(RESULTS_DIR, f"task2b_day{run+1}_{stamp}.json")
         payload = {
             "day": run + 1,
             "metrics": outputValues.get("metrics", []),
@@ -387,7 +395,7 @@ for run in range(numDays):
     except Exception as e:
         print(f"[WARN] Failed to write day {run+1} log: {e}")
 
-# reached the end of the loop. Next day (or exit)
+# done
 if fareFile:
     fareFile.close()
 pygame.quit()
