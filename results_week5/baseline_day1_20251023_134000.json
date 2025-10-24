@@ -1,0 +1,292 @@
+{
+  "metrics": [
+    {
+      "tick": 60,
+      "dispatcherRevenue": 0.0,
+      "taxiBalances": [
+        196.0,
+        196.0,
+        196.0,
+        196.0
+      ],
+      "onDuty": 4,
+      "openFares": 28
+    },
+    {
+      "tick": 120,
+      "dispatcherRevenue": 9.88888888888889,
+      "taxiBalances": [
+        136.0,
+        179.0,
+        182.0,
+        136.0
+      ],
+      "onDuty": 4,
+      "openFares": 46
+    },
+    {
+      "tick": 180,
+      "dispatcherRevenue": 9.88888888888889,
+      "taxiBalances": [
+        76.0,
+        119.0,
+        122.0,
+        76.0
+      ],
+      "onDuty": 4,
+      "openFares": 57
+    },
+    {
+      "tick": 240,
+      "dispatcherRevenue": 15.666666666666668,
+      "taxiBalances": [
+        16.0,
+        59.0,
+        114.0,
+        16.0
+      ],
+      "onDuty": 4,
+      "openFares": 72
+    },
+    {
+      "tick": 300,
+      "dispatcherRevenue": 19.0,
+      "taxiBalances": [
+        -1.0,
+        29.0,
+        54.0,
+        -1.0
+      ],
+      "onDuty": 2,
+      "openFares": 76
+    },
+    {
+      "tick": 360,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        12.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 1,
+      "openFares": 85
+    },
+    {
+      "tick": 420,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 86
+    },
+    {
+      "tick": 480,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 82
+    },
+    {
+      "tick": 540,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 81
+    },
+    {
+      "tick": 600,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 81
+    },
+    {
+      "tick": 660,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 83
+    },
+    {
+      "tick": 720,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 91
+    },
+    {
+      "tick": 780,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 82
+    },
+    {
+      "tick": 840,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 83
+    },
+    {
+      "tick": 900,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 73
+    },
+    {
+      "tick": 960,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 70
+    },
+    {
+      "tick": 1020,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 67
+    },
+    {
+      "tick": 1080,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 70
+    },
+    {
+      "tick": 1140,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 75
+    },
+    {
+      "tick": 1200,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 75
+    },
+    {
+      "tick": 1260,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 68
+    },
+    {
+      "tick": 1320,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 69
+    },
+    {
+      "tick": 1380,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 73
+    },
+    {
+      "tick": 1440,
+      "dispatcherRevenue": 23.77777777777778,
+      "taxiBalances": [
+        -1.0,
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "onDuty": 0,
+      "openFares": 80
+    }
+  ]
+}
