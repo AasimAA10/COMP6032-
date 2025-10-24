@@ -17,9 +17,8 @@ import dispatcher
 from ruparams import *  # brings in worldX, worldY, runTime, numDays, displaySize, trafficOn, recordFares, junctions/streets, BASE_SEED, etc.
 
 # -------------------------------
-# Week 5 reproducibility settings
+# Reproducibility (deterministic)
 # -------------------------------
-# (Make runs deterministic for the baseline)
 try:
     import random
     import numpy as np
@@ -27,24 +26,21 @@ try:
         random.seed(BASE_SEED)
         np.random.seed(BASE_SEED)
 except Exception:
-    # If numpy import path differs elsewhere, this is non-fatal for the sim.
     pass
 
 # -------------------------------
-# Results folder for Task 1a logs
+# Results folder for Task 2 logs
 # -------------------------------
-RESULTS_DIR = "results_week5"
+RESULTS_DIR = "results_task2"
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
 def _get_dispatcher_revenue(disp_obj):
     """Try several common attribute/method names to obtain dispatcher revenue."""
-    # Method form
     if hasattr(disp_obj, "getRevenue") and callable(disp_obj.getRevenue):
         try:
             return float(disp_obj.getRevenue())
         except Exception:
             pass
-    # Attribute forms
     for name in ("revenue", "_revenue", "totalRevenue", "dispatcherRevenue"):
         if hasattr(disp_obj, name):
             try:
@@ -65,10 +61,10 @@ def _count_open_fares(disp_obj):
     return 0
 
 def runRoboUber(worldX, worldY, runTime, stop, junctions=None, streets=None,
-                interpolate=False, outputValues=None, day_tag="day1", **args):
+                interpolate=False, outputValues=None, **args):
     """
-    Runs one day of simulation in a background thread and writes:
-      results_week5/baseline_<day_tag>_YYYYMMDD_HHMMSS.json
+    Runs the world simulation in a background thread.
+    Pushes hourly snapshots into outputValues["metrics"] for analysis.
     """
 
     # initialise a random fare generator
@@ -93,12 +89,16 @@ def runRoboUber(worldX, worldY, runTime, stop, junctions=None, streets=None,
     if 'serviceMap' in args:
         args['serviceMap'] = svcMap
 
-    # create some taxis
+    # create some taxis (Task 2a: longer on-duty via higher idle_loss and longer max_wait)
     print("Creating taxis")
-    taxi0 = taxi.Taxi(world=svcArea, taxi_num=100, service_area=svcMap, start_point=(20, 0))
-    taxi1 = taxi.Taxi(world=svcArea, taxi_num=101, service_area=svcMap, start_point=(49, 15))
-    taxi2 = taxi.Taxi(world=svcArea, taxi_num=102, service_area=svcMap, start_point=(15, 49))
-    taxi3 = taxi.Taxi(world=svcArea, taxi_num=103, service_area=svcMap, start_point=(0, 35))
+    taxi0 = taxi.Taxi(world=svcArea, taxi_num=100, service_area=svcMap, start_point=(20, 0),
+                      idle_loss=400, max_wait=90)
+    taxi1 = taxi.Taxi(world=svcArea, taxi_num=101, service_area=svcMap, start_point=(49, 15),
+                      idle_loss=400, max_wait=90)
+    taxi2 = taxi.Taxi(world=svcArea, taxi_num=102, service_area=svcMap, start_point=(15, 49),
+                      idle_loss=400, max_wait=90)
+    taxi3 = taxi.Taxi(world=svcArea, taxi_num=103, service_area=svcMap, start_point=(0, 35),
+                      idle_loss=400, max_wait=90)
     taxis = [taxi0, taxi1, taxi2, taxi3]
 
     # and a dispatcher
@@ -116,9 +116,6 @@ def runRoboUber(worldX, worldY, runTime, stop, junctions=None, streets=None,
     # ensure 'metrics' list exists in shared output dict
     if outputValues is not None and "metrics" not in outputValues:
         outputValues["metrics"] = []
-
-    # local buffer (thread-owned) for snapshots
-    metrics_local = []
 
     threadRunTime = runTime
     threadTime = 0
@@ -138,10 +135,8 @@ def runRoboUber(worldX, worldY, runTime, stop, junctions=None, streets=None,
             if threadTime != svcArea.simTime:
                 threadTime += 1
 
-            # -------------------------------
-            # Hourly snapshot for Task 1a logs
-            # -------------------------------
-            if threadTime % 60 == 0:
+            # Hourly snapshot (change 60->1 for per-minute)
+            if outputValues is not None and (threadTime % 60 == 0):
                 try:
                     disp_rev = _get_dispatcher_revenue(dispatcher0)
                     open_fares = _count_open_fares(dispatcher0)
@@ -157,35 +152,21 @@ def runRoboUber(worldX, worldY, runTime, stop, junctions=None, streets=None,
                         taxi_balances.append(float(bal) if bal is not None else None)
                         on_duty += 1 if getattr(t, "onDuty", True) else 0
 
-                    snap = {
+                    outputValues["metrics"].append({
                         "tick": int(threadTime),
                         "dispatcherRevenue": disp_rev,
                         "taxiBalances": taxi_balances,
                         "onDuty": int(on_duty),
                         "openFares": int(open_fares)
-                    }
-                    metrics_local.append(snap)
-                    if outputValues is not None:
-                        outputValues["metrics"].append(snap)
+                    })
                 except Exception as e:
-                    # Don't crash the sim if logging fails
                     print(f"[WARN] Logging snapshot failed at t={threadTime}: {e}")
 
             # speed of the simulation (smaller = faster)
             time.sleep(1)
 
-    # ---- write the day file HERE (inside the sim thread) ----
-    try:
-        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_path = os.path.join(RESULTS_DIR, f"baseline_{day_tag}_{stamp}.json")
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump({"metrics": metrics_local}, f, indent=2)
-        print(f"[LOG] Wrote {len(metrics_local)} records to {out_path}")
-    except Exception as e:
-        print(f"[WARN] Failed to write {day_tag} log: {e}")
 
-
-# file to record appearing Fares. You can use similar instrumentation to record just about anything else of interest
+# file to record appearing Fares.
 if recordFares:
     fareFile = open('./faretypes.csv', 'a')
     print('"{0}"'.format('FareType'), '"{0}"'.format('originX'), '"{0}"'.format('originY'),
@@ -194,14 +175,14 @@ if recordFares:
 else:
     fareFile = None
 
-# event to manage a user exit, invoked by pressing 'q' on the keyboard
+# events to manage a user exit
 userExit = threading.Event()
 userConfirmExit = threading.Event()
 userConfirmExit.set()  # enable the simulation thread
 
 # pygame initialisation. Only do this once for static elements.
 pygame.init()
-displaySurface = pygame.display.set_mode(size=displaySize, flags=pygame.RESIZABLE)  # |pygame.SCALED
+displaySurface = pygame.display.set_mode(size=displaySize, flags=pygame.RESIZABLE)
 backgroundRect = None
 aspectRatio = worldX / worldY
 if aspectRatio > 4 / 3:
@@ -278,6 +259,7 @@ for run in range(numDays):
 
     # create a dict of things we want to record (shared with the sim thread)
     outputValues = {'time': [], 'fares': {}, 'taxis': {}}
+    # metrics snapshots are appended in runRoboUber()
 
     # create the thread that runs the simulation
     roboUber = threading.Thread(target=runRoboUber,
@@ -292,8 +274,7 @@ for run in range(numDays):
                                         'interpolate': True,
                                         'outputValues': outputValues,
                                         'fareProb': fGenDefault,
-                                        'fareFile': fareFile,
-                                        'day_tag': f"day{run+1}"} )  # pass a day tag
+                                        'fareFile': fareFile})
 
     # curTime is the time point currently displayed
     curTime = 0
@@ -327,6 +308,7 @@ for run in range(numDays):
             if 'time' in outputValues and len(outputValues['time']) > 0 and curTime != outputValues['time'][-1]:
                 print("curTime: {0}, world.time: {1}".format(curTime, outputValues['time'][-1]))
 
+                # redraw map
                 displayedBackground.fill(pygame.Color(255, 255, 255))
 
                 for street in streets:
@@ -342,6 +324,7 @@ for run in range(numDays):
                     pygame.draw.rect(jctSquares[jct], pygame.Color(128, 128, 128),
                                      pygame.Rect(0, 0, round(meshSize[0] / 2), round(meshSize[1] / 2)), 5)
 
+                # get fares and taxis that need to be redrawn.
                 faresToRedraw = dict([(fare[0], dict([(timep[0], timep[1])
                                                       for timep in fare[1].items()
                                                       if timep[0] > curTime]))
@@ -369,7 +352,7 @@ for run in range(numDays):
 
                 if len(faresToRedraw) > 0:
                     for fare in faresToRedraw.items():
-                        newestFareTime = sorted(list(fare[1].keys()))[-1]
+                        _ = sorted(list(fare[1].keys()))[-1]
                         pygame.draw.polygon(
                             drawPositions[fare[0][0]][fare[0][1]],
                             pygame.Color(255, 128, 0),
@@ -380,12 +363,29 @@ for run in range(numDays):
                               meshSize[1] / 2 + math.sin(math.pi / 6) * meshSize[1] / 4)]
                         )
 
+                # redraw
                 displaySurface.blit(displayedBackground, activeRect)
                 pygame.display.flip()
 
+                # advance time
                 curTime += 1
 
+    # wait 'til the simulation thread ends
     roboUber.join()
+
+    # ------------ Write Day Log ------------
+    try:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_path = os.path.join(RESULTS_DIR, f"task2_day{run+1}_{stamp}.json")
+        payload = {
+            "day": run + 1,
+            "metrics": outputValues.get("metrics", []),
+        }
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+        print(f"[LOG] Wrote {len(payload['metrics'])} records to {out_path}")
+    except Exception as e:
+        print(f"[WARN] Failed to write day {run+1} log: {e}")
 
 # reached the end of the loop. Next day (or exit)
 if fareFile:

@@ -2,58 +2,21 @@ import math
 import numpy
 import heapq
 
-# a data container object for the taxi's internal list of fares. This
-# tells the taxi what fares are available to what destinations at
-# what price, and whether they have been bid upon or allocated. The
-# origin is notably missing: that's because the Taxi will keep this
-# in a dictionary indexed by fare origin, so we don't need to duplicate that
-# here.
+# a data container object for the taxi's internal list of fares.
 class FareInfo:
-
       def __init__(self, destination, price):
-
           self.destination = destination
           self.price = price
-          # bid is a ternary value: -1 = no, 0 = undecided, 1 = yes indicating whether this
-          # taxi has bid for this fare. 
-          self.bid = 0
+          self.bid = 0          # -1 no, 0 undecided, 1 yes
           self.allocated = False
 
-
-''' A Taxi is an agent that can move about the world it's in and collect fares. All taxis have a
-    number that identifies them uniquely to the dispatcher. Taxis have a certain amount of 'idle'
-    time they're willing to absorb, but beyond that, they go off duty since it seems to be a waste
-    of time to stick around. Eventually, they might come back on duty, but it usually won't be for
-    several hours. A Taxi also expects a map of the service area which forms part of its knowledge
-    base. Taxis start from some fixed location in the world. Note that they can't just 'appear' there:
-    any real Node in the world may have traffic (or other taxis!) there, and if its start node is
-    unavailable, the taxi won't enter the world until it is. Taxis collect revenue for fares, and 
-    each minute of active time, whether driving, idle, or conducting a fare, likewise costs them £1.
-'''           
 class Taxi:
-      
       # message type constants
       FARE_ADVICE = 1
       FARE_ALLOC = 2
       FARE_PAY = 3
       FARE_CANCEL = 4
 
-      '''constructor. The only required arguments are the world the taxi operates in and the taxi's number.
-         optional arguments are:
-         idle_loss - how much cost the taxi is prepared to absorb before going off duty. 256 gives about 4
-         hours of life given nothing happening. Loss is cumulative, so if a taxi was idle for 120 minutes,
-         conducted a fare over 20 minutes for a net gain to it of 40, then went idle for another 120 minutes,
-         it would have lost 200, leaving it with only £56 to be able to absorb before going off-duty.
-         max_wait - this is a heuristic the taxi can use to decide whether a fare is even worth bidding on.
-         It is an estimate of how many minutes, on average, a fare is likely to wait to be collected.
-         on_duty_time - this says at what time the taxi comes on duty (default is 0, at the start of the 
-         simulation)
-         off_duty_time - this gives the number of minutes the taxi will wait before returning to duty if
-         it goes off (default is 0, never return)
-         service_area - the world can optionally populate the taxi's map at creation time.
-         start_point - this gives the location in the network where the taxi will start. It should be an (x,y) tuple.
-         default is None which means the world will randomly place the Taxi somewhere on the edge of the service area.
-      '''
       def __init__(self, world, taxi_num, idle_loss=256, max_wait=50, on_duty_time=0, off_duty_time=0, service_area=None, start_point=None):
 
           self._world = world
@@ -69,20 +32,11 @@ class Taxi:
           self._direction = -1
           self._nextLoc = None
           self._nextDirection = -1
-          # this contains a Fare (object) that the taxi has picked up. You use the functions pickupFare()
-          # and dropOffFare() in a given Node to collect and deliver a fare
           self._passenger = None
-          # the map is a dictionary of nodes indexed by (x,y) pair. Each entry is a dictionary of (x,y) nodes that indexes a 
-          # direction and distance. such a structure allows rapid lookups of any node from any other.
           self._map = service_area
           if self._map is None:
               self._map = self._world.exportMap()
-          # path is a list of nodes to be traversed on the way from one point to another. The list is
-          # in order of traversal, and does NOT have to include every node passed through, if these
-          # are incidental (i.e. involve no turns or stops or any other remarkable feature)
           self._path = []
-          # pick the first available entry point starting from the top left corner if we don't have a
-          # preferred choice when coming on duty
           if self._onDutyPos is None:
              x = 0
              y = 0
@@ -94,50 +48,28 @@ class Taxi:
              if x >= self._world.xSize:
                 raise ValueError("This taxi's world has a map which is a closed loop: no way in!")
              self._onDutyPos = (x,y)
-          # this dict maintains which fares the Dispatcher has broadcast as available. After a certain
-          # period of time, fares should be removed  given that the dispatcher doesn't inform the taxis
-          # explicitly that their bid has not been successful. The dictionary is indexed by 
-          # a tuple of (time, originx, originy) to be unique, and the expiry can be implemented using a heap queue
-          # for priority management. You would do this by initialising a self._fareQ object as:
-          # self._fareQ = heapq.heapify(self._fares.keys()) (once you have some fares to consider)
-
-          # the dictionary items, meanwhile, contain a FareInfo object with the price, the destination, and whether 
-          # or not this taxi has been allocated the fare (and thus should proceed to collect them ASAP from the origin)
           self._availableFares = {}
 
-      # This property allows the dispatcher to query the taxi's location directly. It's like having a GPS transponder
-      # in each taxi.
       @property
       def currentLocation(self):
           if self._loc is None:
              return (-1,-1)
           return self._loc.index
 
-      #___________________________________________________________________________________________________________________________
-      # methods to populate the taxi's knowledge base
-
-      # get a map if none was provided at the outset
+      # knowledge base updates
       def importMap(self, newMap):
-          # a fresh map can just be inserted
           if self._map is None:
              self._map = newMap
-          # but importing a new map where one exists implies adding to the
-          # existing one. (Check that this puts in the right values!)
           else:
              for node in newMap.items():
                  neighbours = [(neighbour[1][0],neighbour[0][0],neighbour[0][1]) for neighbour in node[1].items()]
                  self.addMapNode(node[0],neighbours) 
-          
-      # incrementally add to the map. This can be useful if, e.g. the world itself has a set of
-      # nodes incrementally added. It can then call this function on the existing taxis to update
-      # their maps.
       def addMapNode(self, coords, neighbours):
           if self._world is None:
              return AttributeError("This Taxi does not exist in any world")
           node = self._world.getNode(coords[0],coords[1])
           if node is None:
              return KeyError("No such node: {0} in this Taxi's service area".format(coords))
-          # build up the neighbour dictionary incrementally so we can check for invalid nodes.
           neighbourDict = {}
           for neighbour in neighbours:
               neighbourCoords = (neighbour[1], neighbour[2])
@@ -147,13 +79,7 @@ class Taxi:
               neighbourDict[neighbourCoords] = (neighbour[0],self._world.distance2Node(node, neighbourNode))
           self._map[coords] = neighbourDict
 
-      #---------------------------------------------------------------------------------------------------------------------------
-      # automated methods to handle the taxi's interaction with the world. You should not need to change these.
-
-      # comeOnDuty is called whenever the taxi is off duty to bring it into service if desired. Since the relevant
-      # behaviour is completely controlled by the _account, _onDutyTime, _offDutyTime and _onDutyPos properties of 
-      # the Taxi, you should not need to modify this: all functionality can be achieved in clockTick by changing
-      # the desired properties.
+      # automated interactions with the world
       def comeOnDuty(self, time=0):
           if self._world is None:
              return AttributeError("This Taxi does not exist in any world")
@@ -165,31 +91,17 @@ class Taxi:
              self._nextLoc = onDutyPose[0]
              self._nextDirection = onDutyPose[1]
 
-      # clockTick should handle all the non-driving behaviour, turn selection, stopping, etc. Drive automatically
-      # stops once it reaches its next location so that if continuing on is desired, clockTick has to select
-      # that action explicitly. This can be done using the turn and continueThrough methods of the node. Taxis
-      # can collect fares using pickupFare, drop them off using dropoffFare, bid for fares issued by the Dispatcher
-      # using transmitFareBid, and any other internal activity seen as potentially useful. 
       def clockTick(self, world):
-          # automatically go off duty if we have absorbed as much loss as we can in a day
           if self._account <= 0 and self._passenger is None:
              print("Taxi {0} is going off-duty".format(self.number))
              self.onDuty = False
              self._offDutyTime = self._world.simTime
-          # have we reached our last known destination? Decide what to do now.
           if len(self._path) == 0:
-             # obviously, if we have a fare aboard, we expect to have reached their destination,
-             # so drop them off.
              if self._passenger is not None:
                 if self._loc.dropoffFare(self._passenger, self._direction):
                    self._passenger = None
-                # failure to drop off means probably we're not at the destination. But check
-                # anyway, and replan if this is the case.
                 elif self._passenger.destination != self._loc.index:
                    self._path = self._planPath(self._loc.index, self._passenger.destination)
-                   
-          # decide what to do about available fares. This can be done whenever, but should be done
-          # after we have dropped off fares so that they don't complicate decisions.
           faresToRemove = []
           for fare in self._availableFares.items():
               origin = (fare[0][1], fare[0][2])
@@ -213,12 +125,8 @@ class Taxi:
               del self._availableFares[expired]
           else:
              pass
-       
           self._account -= 1
     
-      # called automatically by the taxi's world to update its position. If the taxi has indicated a
-      # turn or that it is going straight through (i.e., it's not stopping here), drive will
-      # move the taxi on to the next Node once it gets the green light.
       def drive(self, newPose):
           if newPose[0] is None and newPose[1] == -1:
              self._nextLoc = None
@@ -257,7 +165,6 @@ class Taxi:
              self._nextLoc = nextPose[0]
              self._nextDirection = nextPose[1]
 
-      # recvMsg handles various dispatcher messages. 
       def recvMsg(self, msg, **args):
           timeOfMsg = self._world.simTime
           if msg == self.FARE_ADVICE:
@@ -275,105 +182,101 @@ class Taxi:
              return
           elif msg == self.FARE_CANCEL:
              for fare in self._availableFares.items():
-                 if fare[0][1] == args['origin'][0] and fare[0][2] == args['origin'][1]: 
+                 if fare[0][1] == args['origin'][0] and fare[0][2] == args['origin'][1]:
                     del self._availableFares[fare[0]]
                     return
 
-      #_____________________________________________________________________________________________________________________
-      # A* path planner (replaces the original DFS)
+      # ============================
+      # HERE ARE THE MODIFIED PARTS
+      # ============================
+
+      # A* path planner (cost = network distance, heuristic = straight-line distance)
       def _planPath(self, origin, destination, **args):
-          """
-          A* path planner for this codebase.
-
-          Map format assumed:
-            self._map[node] -> { neighbor_node: (direction, distance) }
-
-          Returns a list of nodes [origin, ..., destination].
-          """
-
           if origin == destination:
               return [origin]
 
+          # Guardrails
           if origin not in self._map or destination not in self._map:
               return []
 
           def heuristic(a, b):
-              return math.hypot(a[0] - b[0], a[1] - b[1])
+              # Euclidean on grid coordinates
+              return math.hypot(a[0]-b[0], a[1]-b[1])
 
-          open_heap = []
-          heapq.heappush(open_heap, (0.0, 0.0, origin))
+          open_set = []
+          heapq.heappush(open_set, (0.0, origin))
+          came_from = {}            # node -> parent
+          g = {origin: 0.0}         # cost to reach node
+          f = {origin: heuristic(origin, destination)}
 
-          came_from = {}
-          g_score = {origin: 0.0}
-          closed = set()
+          visited = set()
 
-          while open_heap:
-              f_curr, g_curr, current = heapq.heappop(open_heap)
-              if current in closed:
+          while open_set:
+              _, current = heapq.heappop(open_set)
+              if current in visited:
                   continue
-              closed.add(current)
+              visited.add(current)
 
               if current == destination:
-                  break
+                  # reconstruct
+                  path = [current]
+                  while current in came_from:
+                      current = came_from[current]
+                      path.append(current)
+                  path.reverse()
+                  return path
 
-              for nbr, (direction, dist) in self._map.get(current, {}).items():
-                  step = float(dist) if dist is not None else 1.0
-                  tentative_g = g_curr + step
-                  if tentative_g < g_score.get(nbr, float("inf")):
-                      came_from[nbr] = current
-                      g_score[nbr] = tentative_g
-                      f = tentative_g + heuristic(nbr, destination)
-                      heapq.heappush(open_heap, (f, tentative_g, nbr))
+              # neighbors from map: dict of neighbour -> (direction, distance)
+              for nb, (dirn, dist) in self._map[current].items():
+                  tentative_g = g[current] + (dist if isinstance(dist, (int, float)) else 1.0)
+                  if nb not in g or tentative_g < g[nb]:
+                      g[nb] = tentative_g
+                      f[nb] = tentative_g + heuristic(nb, destination)
+                      came_from[nb] = current
+                      heapq.heappush(open_set, (f[nb], nb))
 
-          if destination not in came_from:
-              return []
+          # no route
+          return []
 
-          path = [destination]
-          node = destination
-          while node != origin:
-              node = came_from[node]
-              path.append(node)
-          path.reverse()
-          return path
-
-      #_____________________________________________________________________________________________________________________
-      # More permissive bidding so baseline actually serves customers
+      # Profit-based bidding with ETA/expiry checks and a safety margin
       def _bidOnFare(self, time, origin, destination, price):
-          """
-          Decide whether to bid on a fare.
+          SAFETY_MARGIN = 5.0  # minutes of slack against expiry
+          MIN_PROFIT     = 2.0 # require at least some positive margin
 
-          Safer than the original (checks reachability/expiry/off-duty),
-          but more permissive on price so the baseline moves rides.
-          """
-
-          # can't take new work if we're carrying someone or we don't know our position
-          if self._passenger is not None or self._loc is None:
+          # must be available
+          if self._passenger is not None:
               return False
 
-          node_here = self._loc
-          node_origin = self._world.getNode(origin[0], origin[1])
-          node_dest = self._world.getNode(destination[0], destination[1])
-
-          if node_origin is None or node_dest is None:
+          # travel times (in minutes)
+          o_node = self._world.getNode(origin[0], origin[1])
+          d_node = self._world.getNode(destination[0], destination[1])
+          if o_node is None or d_node is None or self._loc is None:
               return False
 
-          t_to_origin = self._world.travelTime(node_here, node_origin)
-          t_to_dest   = self._world.travelTime(node_origin, node_dest)
-
-          # reject unreachable
-          if t_to_origin < 0 or t_to_dest < 0:
+          time_to_origin = self._world.travelTime(self._loc, o_node)
+          time_to_dest   = self._world.travelTime(o_node, d_node)
+          if time_to_origin <= 0 or time_to_dest <= 0:
               return False
 
-          # fare expiry: must reach origin before they give up
-          age = self._world.simTime - time
-          remaining_wait = self._maxFareWait - age
-          if remaining_wait < 0 or t_to_origin > remaining_wait:
+          # can we get there before fare expires?
+          time_since_call = self._world.simTime - time
+          remaining_window = self._maxFareWait - time_since_call
+          if remaining_window < (time_to_origin + SAFETY_MARGIN):
               return False
 
-          # don't go off-duty en route to pickup
-          if self._account <= 0 or (self._account - t_to_origin) <= 0:
+          # can we afford to even drive there (account is decremented per minute)
+          if self._account <= time_to_origin:
               return False
 
-          # lenient price floor so we actually serve rides
-          min_price = max(3.0, 0.2 * t_to_dest + 0.1 * t_to_origin)
-          return price >= min_price
+          # naive profit model: price - driving minutes (origin + trip) - small safety
+          estimated_cost = time_to_origin + time_to_dest
+          profit = price - estimated_cost
+          if profit < MIN_PROFIT:
+              return False
+
+          # also avoid bidding if we already have an allocated fare pending
+          has_alloc = any(f.allocated for f in self._availableFares.values())
+          if has_alloc:
+              return False
+
+          return True
