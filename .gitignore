@@ -1,0 +1,19 @@
+﻿__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# editors/IDE
+.vscode/
+.idea/
+
+# local env
+.env
+.venv/
+
+# runtime outputs
+results_week5/*.json
+faretypes.csv
+
+# logs
+*.log
